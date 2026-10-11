@@ -18,21 +18,23 @@ function svgIcon(name){return '<svg class="ui-icon" viewBox="0 0 24 24" width="2
 const categoryIcons={screens:'screen',protectors:'shield',batteries:'battery',charging_ports:'plug',charging_flex:'cable',connectors:'chip'};
 const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',companies:[],devices:[],pairs:[]};let client;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-// Local brand assets load instantly from the PWA cache; remote logos remain fallback.
-const localBrandLogos={apple:'apple',asus:'asus',htc:'htc',huawei:'huawei',lenovo:'lenovo',lg:'lg',motorola:'motorola',nokia:'nokia',samsung:'samsung',sony:'sony'};
+// All available company marks are served locally; no third-party image roundtrips.
+const localBrandLogos=new Set(["tecno", "infinix", "xiaomi", "poco", "realme", "oppo", "vivo", "honor", "oneplus", "google", "itel", "blackview", "meizu", "zte", "nothing", "redmi", "alcatel", "acer", "lenovo", "htc", "lg", "apple", "asus", "huawei", "motorola", "nokia", "samsung", "sony"]);
+const brandLogoAliases={ 'redmi':'xiaomi','iphone':'apple','google pixel':'google','motorola mobility':'motorola' };
 function brandLogoUrl(company){
  const key=String(company.name||'').toLowerCase().trim();
- return localBrandLogos[key] ? './images/brands/'+localBrandLogos[key]+'.svg' : company.logo_url;
+ const normalized=brandLogoAliases[key]||key;
+ return localBrandLogos.has(normalized)?'./images/brands/'+normalized+'.svg':null;
 }
 function brandTile(company,click){
  const b=tile('brands',company.name,'',click);
  b.classList.add('brand-tile');
  const icon=b.querySelector('.ico');
  const url=brandLogoUrl(company);
- if(url && (/^https:\/\//i.test(url) || /^images\/brands\/[a-z0-9_-]+\.svg$/i.test(url))){
+ if(url){
   const img=document.createElement('img');
-  img.className='brand-logo';img.alt='';img.loading='eager';img.decoding='async';
-  img.referrerPolicy='no-referrer';img.src=url;
+  img.className='brand-logo';img.alt='';img.loading='eager';img.decoding='sync';
+  img.src=url;
   img.onerror=()=>{img.remove();icon.classList.add('brand-fallback');};
   icon.prepend(img);
  }else icon.classList.add('brand-fallback');
