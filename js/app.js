@@ -19,22 +19,12 @@ const categoryIcons={screens:'screen',protectors:'shield',batteries:'battery',ch
 const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',companies:[],devices:[],pairs:[]};let client;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // All available company marks are served locally; no third-party image roundtrips.
-const localBrandLogos=new Set(["tecno", "infinix", "xiaomi", "poco", "realme", "oppo", "vivo", "honor", "oneplus", "google", "itel", "blackview", "meizu", "zte", "nothing", "redmi", "alcatel", "acer", "lenovo", "htc", "lg", "apple", "asus", "huawei", "motorola", "nokia", "samsung", "sony"]);
+const localBrandLogos=new Set(["apple", "asus", "htc", "huawei", "lenovo", "lg", "motorola", "nokia", "samsung", "sony"]);
 const brandLogoAliases={ 'redmi':'xiaomi','iphone':'apple','google pixel':'google','motorola mobility':'motorola' };
 function brandLogoUrl(company){
  const key=String(company.name||'').toLowerCase().trim();
  const normalized=brandLogoAliases[key]||key;
- return localBrandLogos.has(normalized)?'./images/brands/'+normalized+'.svg':null;
-}
-// Preload local brand artwork immediately; do not wait for Supabase/IndexedDB.
-const preloadedBrandImages=new Map();
-function warmBrandImages(){
- for(const key of localBrandLogos){
-  const src='./images/brands/'+key+'.svg';
-  if(preloadedBrandImages.has(src))continue;
-  const img=new Image();img.decoding='async';img.src=src;
-  preloadedBrandImages.set(src,img);
- }
+ return localBrandLogos.has(normalized)?'./images/brands/'+normalized+'.svg':(company.logo_url||null);
 }
 function brandTile(company,click){
  const b=tile('brands',company.name,'',click);
@@ -43,7 +33,7 @@ function brandTile(company,click){
  const url=brandLogoUrl(company);
  if(url){
   const img=document.createElement('img');
-  img.className='brand-logo';img.alt='';img.loading='eager';img.decoding='async';img.fetchPriority='high';
+  img.className='brand-logo';img.alt='';img.loading='eager';img.decoding='sync';
   img.src=url;
   img.onerror=()=>{img.remove();icon.classList.add('brand-fallback');};
   icon.prepend(img);
@@ -89,13 +79,7 @@ const OFFLINE_DB='tawafuq-catalog-v1', OFFLINE_STORE='snapshots';
 function offlineDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('Offline storage unavailable'));const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>request.result.createObjectStore(OFFLINE_STORE);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 async function loadOffline(){const db=await offlineDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readonly');const request=tx.objectStore(OFFLINE_STORE).get('catalog');request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);tx.oncomplete=()=>db.close();});}
 async function saveOffline(snapshot){const db=await offlineDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readwrite');tx.objectStore(OFFLINE_STORE).put(snapshot,'catalog');tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
-function applyCatalog(data){
- // Avoid destroying/recreating every logo when a background catalog refresh completes.
- const brandsUnchanged=state.route==='brands'&&state.companies.length===data.companies.length&&state.companies.every((c,i)=>c.id===data.companies[i].id&&c.name===data.companies[i].name);
- state.companies=data.companies;state.devices=data.devices;state.pairs=data.pairs;
- rebuildSearchIndex();
- if(!brandsUnchanged)render();
-}
+function applyCatalog(data){state.companies=data.companies;state.devices=data.devices;state.pairs=data.pairs;rebuildSearchIndex();render();}
 // Status messages are kept in the console, not displayed in the app UI.
 function offlineNotice(message){console.info('[توافقات]',message);}
 
@@ -111,7 +95,7 @@ function loadSupabaseSDK(){if(window.supabase?.createClient)return Promise.resol
  sdkPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';script.async=true;script.onload=()=>window.supabase?.createClient?resolve():reject(Error('تعذر تشغيل مكتبة Supabase'));script.onerror=()=>reject(Error('تعذر تحميل مكتبة Supabase'));document.head.append(script);});return sdkPromise;}
 let syncing=false;
 async function refreshInBackground(){if(syncing||!navigator.onLine)return;syncing=true;try{await loadSupabaseSDK();await syncCatalog();}catch(e){console.warn('تعذر تحديث البيانات بالخلفية',e);}finally{syncing=false;}}
-async function init(){warmBrandImages();let hasCache=false;
+async function init(){let hasCache=false;
  // Never block the app shell or offline navigation on a network request.
  const loader=$('#loader');if(loader)loader.style.display='none';
  try{const saved=await loadOffline();if(saved&&Array.isArray(saved.companies)&&Array.isArray(saved.devices)&&Array.isArray(saved.pairs)){applyCatalog(saved);hasCache=true;offlineNotice('البيانات محفوظة على الجهاز ويمكن البحث بدون إنترنت');}}catch(e){console.warn('تعذر فتح البيانات المحفوظة',e);}
