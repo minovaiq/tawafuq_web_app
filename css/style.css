@@ -65,3 +65,6 @@ body.modal-open{overflow:hidden}
   .dialog input, .dialog textarea, .dialog select,
   .dialog .device-picker input[type="search"] { font-size: 16px !important; }
 }
+
+/* Respect the HTML hidden attribute even when button uses flex styling. */
+#installBtn[hidden]{display:none!important}
