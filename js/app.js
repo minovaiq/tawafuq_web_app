@@ -26,6 +26,15 @@ function brandLogoUrl(company){
  const normalized=brandLogoAliases[key]||key;
  return localBrandLogos.has(normalized)?'./images/brands/'+normalized+'.svg':(company.logo_url||null);
 }
+// Save external original logos for offline use, without replacing them with text SVGs.
+function cacheBrandLogos(companies){
+ const urls=[...new Set(companies.map(c=>brandLogoUrl(c)).filter(Boolean))];
+ if(!urls.length||!('serviceWorker' in navigator))return;
+ navigator.serviceWorker.ready.then(reg=>{
+  const worker=reg.active||navigator.serviceWorker.controller;
+  if(worker)worker.postMessage({type:'CACHE_BRAND_LOGOS',urls});
+ }).catch(()=>{});
+}
 function brandTile(company,click){
  const b=tile('brands',company.name,'',click);
  b.classList.add('brand-tile');
@@ -87,7 +96,7 @@ async function syncCatalog(){if(!window.supabase?.createClient)throw Error('مك
  const [companies,devices,pairs]=await Promise.all([fetchAll('tawafuq_companies','id,name,status,logo_url'),fetchAll('tawafuq_devices','id,name,company,year'),fetchAll('tawafuq_compatibilities','id,kind,device,compatible,status')]);
  const snapshot={companies:companies.filter(x=>x.status!=='غير نشط').sort((a,b)=>a.name.localeCompare(b.name)),devices:devices.sort((a,b)=>a.name.localeCompare(b.name)),pairs:pairs.filter(p=>['معتمد','مؤكد','نشط','approved','verified'].includes((p.status||'').toLowerCase())),updatedAt:Date.now()};
  let stored=false;try{await saveOffline(snapshot);stored=true;}catch(e){console.warn('تعذر حفظ بيانات البحث محلياً',e);}
- applyCatalog(snapshot);offlineNotice(stored?'تم تحديث البيانات وحفظها على الجهاز للاستخدام بدون إنترنت':'تم تحديث البيانات، لكن تعذر حفظها على الجهاز');
+ applyCatalog(snapshot);cacheBrandLogos(snapshot.companies);offlineNotice(stored?'تم تحديث البيانات وحفظها على الجهاز للاستخدام بدون إنترنت':'تم تحديث البيانات، لكن تعذر حفظها على الجهاز');
 }
 // Load the remote library only after the cached interface is usable.
 let sdkPromise;
@@ -98,7 +107,7 @@ async function refreshInBackground(){if(syncing||!navigator.onLine)return;syncin
 async function init(){let hasCache=false;
  // Never block the app shell or offline navigation on a network request.
  const loader=$('#loader');if(loader)loader.style.display='none';
- try{const saved=await loadOffline();if(saved&&Array.isArray(saved.companies)&&Array.isArray(saved.devices)&&Array.isArray(saved.pairs)){applyCatalog(saved);hasCache=true;offlineNotice('البيانات محفوظة على الجهاز ويمكن البحث بدون إنترنت');}}catch(e){console.warn('تعذر فتح البيانات المحفوظة',e);}
+ try{const saved=await loadOffline();if(saved&&Array.isArray(saved.companies)&&Array.isArray(saved.devices)&&Array.isArray(saved.pairs)){applyCatalog(saved);if(navigator.onLine)cacheBrandLogos(saved.companies);hasCache=true;offlineNotice('البيانات محفوظة على الجهاز ويمكن البحث بدون إنترنت');}}catch(e){console.warn('تعذر فتح البيانات المحفوظة',e);}
  if(!hasCache){render();offlineNotice(navigator.onLine?'جاري تحميل البيانات لأول مرة...':'لا توجد بيانات محفوظة؛ اتصل بالإنترنت مرة واحدة لتنزيلها');}
  if(navigator.onLine){refreshInBackground();}
 }
