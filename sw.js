@@ -1,4 +1,4 @@
-const CACHE='tawafuq-pwa-v12';
+const CACHE='tawafuq-pwa-v13';
 const ASSETS=['./','./index.html','./css/style.css','./js/app.js','./js/install.js','./images/logo.svg','./images/icon-192.png','./images/icon-512.png','./manifest.webmanifest',
 './images/brands/apple.svg','./images/brands/asus.svg','./images/brands/htc.svg','./images/brands/huawei.svg','./images/brands/lenovo.svg','./images/brands/lg.svg','./images/brands/motorola.svg','./images/brands/nokia.svg','./images/brands/samsung.svg','./images/brands/sony.svg','./images/brands/tecno.svg','./images/brands/infinix.svg','./images/brands/xiaomi.svg','./images/brands/poco.svg','./images/brands/realme.svg','./images/brands/oppo.svg','./images/brands/vivo.svg','./images/brands/honor.svg','./images/brands/oneplus.svg','./images/brands/google.svg','./images/brands/itel.svg','./images/brands/blackview.svg','./images/brands/meizu.svg','./images/brands/zte.svg','./images/brands/nothing.svg','./images/brands/redmi.svg','./images/brands/alcatel.svg','./images/brands/acer.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
