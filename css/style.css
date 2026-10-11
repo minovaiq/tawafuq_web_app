@@ -58,3 +58,10 @@ body.modal-open{overflow:hidden}
 .install-help-card{width:min(360px,100%);background:white;border-radius:17px;padding:20px;position:relative;box-shadow:0 12px 45px #1d123044}
 .install-help-card h3{margin:0 0 10px;font-size:17px}.install-help-card p{line-height:2;margin:0 0 16px}
 .install-help-close{position:absolute;left:12px;top:7px;background:transparent;border:0;font-size:25px}
+
+/* iOS Safari: prevent focus zoom while preserving normal viewport scaling */
+@media (max-width: 700px) {
+  .search-wrap input,
+  .dialog input, .dialog textarea, .dialog select,
+  .dialog .device-picker input[type="search"] { font-size: 16px !important; }
+}
