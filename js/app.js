@@ -18,14 +18,20 @@ function svgIcon(name){return '<svg class="ui-icon" viewBox="0 0 24 24" width="2
 const categoryIcons={screens:'screen',protectors:'shield',batteries:'battery',charging_ports:'plug',charging_flex:'cable',connectors:'chip'};
 const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',companies:[],devices:[],pairs:[]};let client;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// Local brand assets load instantly from the PWA cache; remote logos remain fallback.
+const localBrandLogos={apple:'apple',asus:'asus',htc:'htc',huawei:'huawei',lenovo:'lenovo',lg:'lg',motorola:'motorola',nokia:'nokia',samsung:'samsung',sony:'sony'};
+function brandLogoUrl(company){
+ const key=String(company.name||'').toLowerCase().trim();
+ return localBrandLogos[key] ? './images/brands/'+localBrandLogos[key]+'.svg' : company.logo_url;
+}
 function brandTile(company,click){
  const b=tile('brands',company.name,'',click);
  b.classList.add('brand-tile');
  const icon=b.querySelector('.ico');
- const url=company.logo_url;
+ const url=brandLogoUrl(company);
  if(url && (/^https:\/\//i.test(url) || /^images\/brands\/[a-z0-9_-]+\.svg$/i.test(url))){
   const img=document.createElement('img');
-  img.className='brand-logo';img.alt='';img.loading='lazy';img.decoding='async';
+  img.className='brand-logo';img.alt='';img.loading='eager';img.decoding='async';
   img.referrerPolicy='no-referrer';img.src=url;
   img.onerror=()=>{img.remove();icon.classList.add('brand-fallback');};
   icon.prepend(img);
