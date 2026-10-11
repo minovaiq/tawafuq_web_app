@@ -68,3 +68,6 @@ body.modal-open{overflow:hidden}
 
 /* Respect the HTML hidden attribute even when button uses flex styling. */
 #installBtn[hidden]{display:none!important}
+
+/* Keep search inside the current section; no search bar on home. */
+.search-wrap[hidden]{display:none!important}
