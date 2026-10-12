@@ -1,0 +1,32 @@
+name: Update All Spares charging connector catalog
+on:
+  push:
+    paths:
+      - "scripts/sync_all_spares.py"
+      - ".github/workflows/sync-all-spares.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "20 3 * * 0"
+permissions:
+  contents: write
+jobs:
+  import-connectors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check requests==2.32.3 beautifulsoup4==4.12.3
+      - name: Scrape public standalone charging connectors
+        run: python scripts/sync_all_spares.py
+      - name: Commit catalog when updated
+        run: |
+          git config user.name "tawafuq-catalog-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/all_spares_connectors.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Sync All Spares standalone connector compatibility catalog"
+            git push
+          fi
