@@ -93,7 +93,7 @@ function applyCatalog(data){state.companies=data.companies;state.devices=data.de
 function offlineNotice(message){console.info('[توافقات]',message);}
 
 async function syncCatalog(){if(!window.supabase?.createClient)throw Error('مكتبة Supabase غير متوفرة');if(!client)client=window.supabase.createClient(SUPABASE_URL,KEY);
- const [companies,devices,pairs]=await Promise.all([fetchAll('tawafuq_companies','id,name,status,logo_url'),fetchAll('tawafuq_devices','id,name,company,year'),fetchAll('tawafuq_compatibilities','id,kind,device,compatible,status,image_url')]);
+ const [companies,devices,pairs]=await Promise.all([fetchAll('tawafuq_companies','id,name,status,logo_url'),fetchAll('tawafuq_devices','id,name,company,year'),fetchAll('tawafuq_compatibilities','id,kind,device,compatible,status')]);
  const snapshot={companies:companies.filter(x=>x.status!=='غير نشط').sort((a,b)=>a.name.localeCompare(b.name)),devices:devices.sort((a,b)=>a.name.localeCompare(b.name)),pairs:pairs.filter(p=>['معتمد','مؤكد','نشط','approved','verified'].includes((p.status||'').toLowerCase())),updatedAt:Date.now()};
  let stored=false;try{await saveOffline(snapshot);stored=true;}catch(e){console.warn('تعذر حفظ بيانات البحث محلياً',e);}
  applyCatalog(snapshot);cacheBrandLogos(snapshot.companies);offlineNotice(stored?'تم تحديث البيانات وحفظها على الجهاز للاستخدام بدون إنترنت':'تم تحديث البيانات، لكن تعذر حفظها على الجهاز');
