@@ -16,7 +16,7 @@ phone:'<rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M10 18h4"/>'
 };
 function svgIcon(name){return '<svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.grid)+'</svg>';}
 const categoryIcons={screens:'screen',protectors:'shield',batteries:'battery',charging_ports:'plug',charging_flex:'cable',connectors:'chip'};
-const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',companies:[],devices:[],pairs:[]};let client;
+const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',lastSearch:'',fromSearch:false,companies:[],devices:[],pairs:[]};let client;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // All available company marks are served locally; no third-party image roundtrips.
 const localBrandLogos=new Set(["apple", "asus", "htc", "huawei", "lenovo", "lg", "motorola", "nokia", "samsung", "sony"]);
@@ -77,7 +77,7 @@ function searchScore(entry,query){const q=normalizeText(query);if(!q)return -1;c
 function searchDevices(query,limit=120,company=null){if(!normalizeText(query))return [];return searchIndex.filter(e=>(!company||e.d.company===company)).map(e=>({e,score:searchScore(e,query)})).filter(x=>x.score>=0).sort((a,b)=>b.score-a.score||a.e.d.name.length-b.e.d.name.length||a.e.i-b.e.i).slice(0,limit).map(x=>x.e.d);}
 function deviceMatchesQuery(d,q){const entry=searchMap.get(d.id);return entry?searchScore(entry,q)>=0:deviceKeys(d).some(k=>k.includes(normalizeText(q)));}
 function matchingDeviceIds(value){const raw=String(value||'');const found=state.devices.find(d=>d.id===raw);if(found)return new Set([found.id]);const key=normalizeText(raw);return new Set(state.devices.filter(d=>deviceKeys(d).has(key)).map(d=>d.id));}
-function compatibleFor(d){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(state.kind&&p.kind!==state.kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}return matches;}
+function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}return matches;}
 
 function partGroupKey(p){
  const id=String(p.id||'');
@@ -97,7 +97,7 @@ function renderChargingPartDetails(el,d,matches){
  for(const p of matches){const key=partGroupKey(p);if(!groups.has(key))groups.set(key,{key,items:[]});groups.get(key).items.push(p)}
  const partTitle=kinds.find(k=>k[0]===state.kind)?.[1]||'قطعة الشحن';
  const top=document.createElement('div');top.className='part-detail-top';
- const back=document.createElement('button');back.type='button';back.className='part-back';back.textContent='‹';back.setAttribute('aria-label','رجوع');back.onclick=()=>goto('models',{device:null});
+ const back=document.createElement('button');back.type='button';back.className='part-back';back.textContent='‹';back.setAttribute('aria-label','رجوع');back.onclick=()=>state.fromSearch?goto('search-kinds',{kind:null}):goto('models',{device:null});
  const heading=document.createElement('strong');heading.textContent='تفاصيل القطعة';
  const fav=document.createElement('span');fav.className='part-heart';fav.textContent='♡';fav.setAttribute('aria-hidden','true');
  top.append(back,heading,fav);el.append(top);
@@ -155,6 +155,35 @@ function render(){document.body.classList.toggle('part-view',state.route==='deta
  else if(state.route==='brands'){title('اختر الشركة');const list=state.companies;list.forEach(c=>add(brandTile(c,()=>goto('models',{brand:c.name,device:null}))));n=list.length;}
  else if(state.route==='models'){title('موديلات '+(state.brand||'')+' - '+partName);const list=state.search?searchDevices(state.search,250,state.brand):filteredDevices();list.forEach(d=>add(tile('phone',d.name,d.year||'',()=>goto('detail',{device:d}))));n=list.length;}
 
+ else if(state.route==='search-kinds'){
+  const d=state.device;
+  title('توافقات '+d.name);
+  const wrap=document.createElement('div');wrap.className='search-kinds-page';
+  const back=document.createElement('button');back.type='button';back.className='search-kinds-back';back.textContent='‹ رجوع لنتائج البحث';back.onclick=()=>{goto('search',{kind:null,device:null});state.search=state.lastSearch;$('#search').value=state.lastSearch;render()};
+  wrap.append(back);
+  const heading=document.createElement('div');heading.className='search-kinds-heading';
+  heading.innerHTML='<span class="search-kinds-eyebrow">اختر قسم التوافق</span><h2>'+esc(d.name)+'</h2><p>'+esc(d.company)+' · اختر نوع القطعة حتى تظهر لك التوافقات الخاصة بيها</p>';
+  wrap.append(heading);
+  const cats=document.createElement('div');cats.className='search-kinds-grid';
+  const kindIcons={screens:'screen',protectors:'shield',batteries:'battery',charging_boards:'plug',charging_sockets:'plug',charging_flex:'cable',connectors:'chip'};
+  let total=0;
+  for(const [key,label] of kinds){
+    const count=compatibleFor(d,key).length;total+=count;
+    const card=document.createElement('button');card.type='button';card.className='search-kind-card'+(!count?' search-kind-empty':'');
+    const ico=document.createElement('span');ico.className='search-kind-icon';ico.innerHTML=svgIcon(kindIcons[key]||'grid');
+    const content=document.createElement('span');content.className='search-kind-content';
+    const name=document.createElement('strong');name.textContent=label;
+    const subtitle=document.createElement('small');subtitle.textContent=count?'اضغط لعرض الأجهزة المتوافقة':'لا توجد توافقات مسجلة';
+    content.append(name,subtitle);
+    const badge=document.createElement('span');badge.className='search-kind-count';badge.textContent=String(count);
+    const arrow=document.createElement('span');arrow.className='search-kind-arrow';arrow.textContent='‹';
+    card.append(ico,content,badge,arrow);
+    card.onclick=()=>goto('detail',{device:d,kind:key,brand:d.company,fromSearch:true});
+    cats.append(card);
+  }
+  const summary=document.createElement('div');summary.className='search-kinds-total';summary.textContent='مجموع التوافقات المسجلة: '+total;
+  wrap.append(summary,cats);add(wrap);n=kinds.length;
+ }
  else if(state.route==='detail'){
   const d=state.device;const matches=compatibleFor(d);
   const isPart=['charging_sockets','charging_boards'].includes(state.kind);
@@ -170,9 +199,9 @@ function render(){document.body.classList.toggle('part-view',state.route==='deta
   }
   const suggest=document.createElement('button');suggest.className='primary suggest-compat';suggest.textContent='إرسال توافق';suggest.onclick=()=>openSubmit(d);el.append(suggest);add(el);n=matches.length;
  }
- else if(state.route==='search'){title('البحث في جميع الأجهزة');const q=state.search;const list=searchDevices(q,120);list.forEach(d=>add(tile('search',d.name,d.company+' · '+(d.year||''),()=>goto('detail',{device:d,brand:d.company}))));if(!q)add(empty('اكتب اسم جهاز أو شركة للبحث'));n=list.length;}
+ else if(state.route==='search'){title('البحث في جميع الأجهزة');const q=state.search;const list=searchDevices(q,120);list.forEach(d=>add(tile('search',d.name,d.company+' · '+(d.year||''),()=>{state.lastSearch=q;goto('search-kinds',{device:d,kind:null,brand:d.company,fromSearch:true})})));if(!q)add(empty('اكتب اسم جهاز أو شركة للبحث'));n=list.length;}
  else if(state.route==='submit'){title('إرسال توافق');add(tile('send','إرسال توافق','',()=>openSubmit()));n=1;openSubmit();}
- if(!box.children.length)add(empty('ماكو نتائج حالياً'));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.route===state.route||(state.route==='models'||state.route==='detail')&&b.dataset.route==='brands'));
+ if(!box.children.length)add(empty('ماكو نتائج حالياً'));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.route===state.route||(state.route==='models'||state.route==='detail'&&!state.fromSearch)&&b.dataset.route==='brands'||(state.route==='search-kinds'||state.route==='detail'&&state.fromSearch)&&b.dataset.route==='search'));
 }
 function empty(msg){const e=document.createElement('div');e.className='empty';e.innerHTML='<b>لا توجد نتائج</b><span>'+esc(msg)+'</span>';return e}
 const pickers=['submitDevice','submitCompatible'];
