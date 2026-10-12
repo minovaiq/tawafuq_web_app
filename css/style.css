@@ -165,3 +165,5 @@ body.part-view .cards{display:block}
 #content.single-page .search-kind-card{width:100%;min-width:0}
 #content.single-page .search-kinds-heading{width:100%}
 @media(max-width:520px){#content.single-page .search-kinds-grid{grid-template-columns:minmax(0,1fr)}#content.single-page .search-kinds-page{max-width:none}#content.single-page .search-kinds-heading{padding:19px 17px}#content.single-page .search-kind-card{padding:13px 14px;min-height:78px}}
+
+.part-source{display:inline-block;margin-top:7px;color:#6b30b7;font-size:12px;text-decoration:underline;text-underline-offset:3px}.part-photo-status a{color:#6b30b7;font-weight:700;text-decoration:underline}
