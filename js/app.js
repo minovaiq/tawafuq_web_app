@@ -67,6 +67,7 @@ function compatibleFor(d){const ids=new Set([d.id]);const keys=deviceKeys(d);con
 
 function partGroupKey(p){
  const id=String(p.id||'');
+ if(id.startsWith('socket-gold-20261012-'))return 'socket-gold-20261012';
  if(id.startsWith('socket-list3-'))return 'socket-18pin-20261012';
  if(id.startsWith('socket-micro-usb-20261012-'))return 'socket-micro-20261012';
  if(id.startsWith('socket-s10'))return 'socket-s10';
@@ -101,14 +102,14 @@ function renderChargingPartDetails(el,d,matches){
    img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const bar=document.createElement('div');bar.className='part-photo-overlay-bar';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق');close.onclick=()=>overlay.remove();const ttl=document.createElement('strong');ttl.textContent='صورة القطعة';const download=document.createElement('a');download.href=img.src;download.download='charging-socket.svg';download.textContent='↓';download.setAttribute('aria-label','حفظ الصورة');bar.append(close,ttl,download);const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(bar,full);overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};document.body.append(overlay)};
   };
   if(imageSource)setImage(imageSource);
-  else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;if(!frame.isConnected)return;if(data?.image_url)setImage(data.image_url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
+  else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}let url=null;if(group.key==='socket-gold-20261012'){const {data,error}=await client.from('tawafuq_part_photos').select('image_data').eq('id',group.key).maybeSingle();if(error)throw error;url=data?.image_data;}else{const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;url=data?.image_url;}if(!frame.isConnected)return;if(url)setImage(url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
   else status.textContent='صورة القطعة غير متوفرة';
   const heading=document.createElement('div');heading.className='part-photo-caption';
   const name=document.createElement('h3');name.textContent=partTitle;
-  const spec=document.createElement('p');spec.textContent=group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
+  const spec=document.createElement('p');spec.textContent=group.key==='socket-gold-20261012'?'USB Type-C · صورة القطعة الأصلية':group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
   heading.append(name,spec);card.append(heading);
   const hint=document.createElement('div');hint.className='part-info';hint.textContent='هذا سوكت شحن منفصل متوافق بحسب قائمة الموديلات المرفقة. تأكد من مطابقة شكل القطعة وعدد الأرجل قبل التركيب.';card.append(hint);
-  const count=document.createElement('h3');count.className='part-compat-heading';count.textContent='الأجهزة المتوافقة ('+group.items.length+')';card.append(count);
+  const count=document.createElement('h3');count.className='part-compat-heading';count.textContent='الأجهزة المتوافقة ('+(group.key==='socket-gold-20261012'?group.items.length+1:group.items.length)+')';card.append(count);
   const brands=new Map();
   for(const p of group.items){
    const match=state.devices.find(x=>x.name===p.label||p.label===x.company+' '+x.name);
