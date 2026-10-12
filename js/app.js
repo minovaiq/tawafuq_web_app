@@ -96,9 +96,9 @@ function renderChargingPartDetails(el,d,matches){
   const imageSource=partImageUrl(group);
   const setImage=url=>{
    if(!url||!(/^(https:\/\/|images\/parts\/[a-z0-9-]+\.svg$|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
-   img.src=url;img.onload=()=>{status.remove();frame.replaceChildren(img);};
+   img.src=url;img.onload=()=>{status.remove();frame.replaceChildren(img);const expand=document.createElement('button');expand.type='button';expand.className='part-expand';expand.textContent='⛶';expand.setAttribute('aria-label','تكبير الصورة');expand.onclick=()=>img.click();frame.append(expand);};
    img.onerror=()=>{status.textContent='تعذر عرض صورة القطعة';};
-   img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(full);overlay.onclick=()=>overlay.remove();document.body.append(overlay)};
+   img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const bar=document.createElement('div');bar.className='part-photo-overlay-bar';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق');close.onclick=()=>overlay.remove();const ttl=document.createElement('strong');ttl.textContent='صورة القطعة';const download=document.createElement('a');download.href=img.src;download.download='charging-socket.svg';download.textContent='↓';download.setAttribute('aria-label','حفظ الصورة');bar.append(close,ttl,download);const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(bar,full);overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};document.body.append(overlay)};
   };
   if(imageSource)setImage(imageSource);
   else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;if(!frame.isConnected)return;if(data?.image_url)setImage(data.image_url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
@@ -119,9 +119,10 @@ function renderChargingPartDetails(el,d,matches){
    const display=modelName+(codes.length?' ('+codes.join(', ')+')':'');
    brands.get(company).set(modelName,display);
   }
-  for(const [company,models] of [...brands].sort((a,b)=>b[1].size-a[1].size)){
+  const order=['Infinix','Lenovo','Motorola','Tecno','Ulefone'];
+  for(const [company,models] of [...brands].sort((a,b)=>{const ai=order.indexOf(a[0]),bi=order.indexOf(b[0]);return (ai<0?999:ai)-(bi<0?999:bi)||a[0].localeCompare(b[0])})){
    const section=document.createElement('details');section.className='part-brand';section.open=true;
-   const summary=document.createElement('summary');summary.textContent=company+' ('+models.size+')';section.append(summary);
+   const summary=document.createElement('summary');const nameSpan=document.createElement('span');nameSpan.textContent=company+' ('+models.size+')';const badge=document.createElement('span');badge.className='part-brand-badge part-brand-'+company.toLowerCase().replace(/[^a-z0-9]+/g,'-');badge.textContent=company;summary.append(nameSpan,badge);section.append(summary);
    const grid=document.createElement('div');grid.className='part-model-grid';
    if(company==='Lenovo')grid.classList.add('part-model-grid-3');
    [...models.entries()].sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})).forEach(([model,display])=>{
