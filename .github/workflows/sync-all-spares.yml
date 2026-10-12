@@ -5,8 +5,6 @@ on:
       - "scripts/sync_all_spares.py"
       - ".github/workflows/sync-all-spares.yml"
   workflow_dispatch:
-  schedule:
-    - cron: "20 3 * * 0"
 permissions:
   contents: write
 jobs:
