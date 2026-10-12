@@ -71,3 +71,49 @@ body.modal-open{overflow:hidden}
 
 /* Keep search inside the current section; no search bar on home. */
 .search-wrap[hidden]{display:none!important}
+
+/* Charging-part detail: one photo per physical part, compatible models underneath. */
+body.part-view{background:#fbf9ff}
+body.part-view .shell{max-width:900px}
+body.part-view .top{display:none}
+body.part-view .heading{display:none}
+body.part-view .cards{display:block}
+.part-detail{width:100%;margin:0 auto 25px}
+.part-detail-top{display:flex;align-items:center;justify-content:space-between;min-height:74px;padding:10px 20px;margin:0 -18px 20px;background:linear-gradient(110deg,#6a2dbf,#8c3fea);color:white}
+.part-detail-top strong{font-size:19px;font-weight:800}
+.part-back{border:0;background:none;color:white;font-size:37px;line-height:1;min-width:32px;transform:rotate(180deg)}
+.part-heart{font-size:32px;font-weight:400;line-height:1}
+.part-selected-device{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 5px 14px;font-size:12px}
+.part-selected-device strong{font-size:15px}
+.part-selected-device span{color:var(--muted)}
+.part-card{background:#fff;border:1px solid #ece3f7;border-radius:22px;padding:15px;margin-bottom:20px;box-shadow:0 8px 24px #6433a508}
+.part-photo-frame{width:100%;aspect-ratio:1/1;background:#fff;border:1px solid #eee7f4;border-radius:18px;display:grid;place-items:center;overflow:hidden;position:relative}
+.part-photo-frame img{display:block;width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+.part-photo-status{color:#8d7ba3;font-size:12px;padding:15px;text-align:center}
+.part-photo-overlay{position:fixed;inset:0;z-index:100;background:#000e;display:grid;place-items:center;padding:12px;cursor:zoom-out}
+.part-photo-overlay img{max-width:98vw;max-height:93dvh;object-fit:contain;background:white;border-radius:12px}
+.part-photo-caption{text-align:center;padding:14px 5px 4px}
+.part-photo-caption h3{font-size:19px;margin:0 0 3px;color:#2f1a52}
+.part-photo-caption p{font-size:13px;color:#796890;margin:0}
+.part-info{background:#f3ebff;color:#6c32b6;border-radius:14px;text-align:center;padding:12px;margin:14px 0 20px;font-size:12px;line-height:1.9}
+.part-compat-heading{font-size:18px;color:#43216c;margin:15px 3px}
+.part-brand{border:1px solid #eae2f4;border-radius:16px;padding:10px 12px;margin:12px 0;background:#fff}
+.part-brand summary{cursor:pointer;color:#6b2cbb;font-size:16px;font-weight:800;padding:7px 2px;list-style:none}
+.part-brand summary::-webkit-details-marker{display:none}
+.part-brand summary:before{content:'⌄';float:left;font-size:23px;line-height:1}
+.part-brand:not([open]) summary:before{content:'‹'}
+.part-model-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:8px 0}
+.part-model{display:flex;justify-content:center;align-items:center;text-align:center;background:#f3edfc;color:#422365;border-radius:11px;min-height:36px;padding:6px 8px;font-size:12px;overflow-wrap:anywhere}
+.part-model-extra{display:none}
+.part-brand.expanded .part-model-extra{display:flex}
+.part-show-more{border:0;width:100%;background:#f3edfc;color:#6d30c0;border-radius:10px;min-height:36px;margin:3px 0;font-weight:700;font-size:12px}
+.part-detail .suggest-compat{display:block;max-width:280px;margin:18px auto 0}
+@media(max-width:700px){
+ .part-detail-top{margin:0 -13px 15px;min-height:68px}
+ .part-card{padding:11px;border-radius:18px}
+ .part-photo-frame{border-radius:15px}
+ .part-photo-caption h3{font-size:17px}
+ .part-brand summary{font-size:14px}
+ .part-model{font-size:11px}
+ .part-selected-device{padding:0 3px 12px}
+}
