@@ -135,3 +135,25 @@ body.part-view .cards{display:block}
 .part-brand-tecno{background:#2367a5}
 .part-brand-motorola{background:#3154ad}
 .part-brand-ulefone{background:#424242}
+
+/* Bottom-search flow: device -> category with compatibility counts -> results. */
+.search-kinds-page{max-width:760px;margin:0 auto 24px;width:100%;direction:rtl}
+.search-kinds-back{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:#7236c4;font-size:13px;font-weight:700;padding:9px 4px 16px;cursor:pointer}
+.search-kinds-heading{background:linear-gradient(125deg,#7834cb,#9854e8);color:#fff;padding:22px 20px;border-radius:20px;margin-bottom:13px;box-shadow:0 9px 23px #6f2db526}
+.search-kinds-eyebrow{font-size:12px;opacity:.85}
+.search-kinds-heading h2{font-size:24px;line-height:1.5;margin:2px 0 6px}
+.search-kinds-heading p{font-size:13px;line-height:1.8;opacity:.94;margin:0}
+.search-kinds-total{font-size:13px;color:#74568f;font-weight:700;padding:8px 4px 12px}
+.search-kinds-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.search-kind-card{display:flex;align-items:center;gap:10px;text-align:right;direction:rtl;border:1px solid #e9def8;background:#fff;box-shadow:0 3px 12px #6b29af0c;border-radius:16px;padding:15px 13px;min-height:89px;color:#39234e;cursor:pointer;min-width:0}
+.search-kind-card:active{transform:scale(.99)}
+.search-kind-icon{display:grid;place-items:center;flex:none;background:#f3eafd;color:#7b37ce;border-radius:12px;width:42px;height:42px}
+.search-kind-icon svg{width:24px;height:24px}
+.search-kind-content{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.search-kind-content strong{font-size:14px;line-height:1.4}
+.search-kind-content small{font-size:10px;color:#9a8ba9;line-height:1.5}
+.search-kind-count{font-size:14px;font-weight:800;background:#efe5fc;color:#7332bc;min-width:35px;padding:6px 9px;border-radius:10px;text-align:center;flex:none}
+.search-kind-arrow{font-size:24px;color:#a17cce;line-height:1;flex:none}
+.search-kind-empty{background:#fdfcff}
+.search-kind-empty .search-kind-count{background:#f3f0f6;color:#aa9fb4}
+@media(max-width:520px){.search-kinds-grid{grid-template-columns:1fr;gap:9px}.search-kinds-heading{padding:18px 16px;border-radius:17px}.search-kinds-heading h2{font-size:21px}.search-kind-card{min-height:73px;padding:10px 12px}.search-kind-content strong{font-size:14px}}
