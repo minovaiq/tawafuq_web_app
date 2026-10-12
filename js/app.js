@@ -16,7 +16,7 @@ phone:'<rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M10 18h4"/>'
 };
 function svgIcon(name){return '<svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(iconPaths[name]||iconPaths.grid)+'</svg>';}
 const categoryIcons={screens:'screen',protectors:'shield',batteries:'battery',charging_ports:'plug',charging_flex:'cable',connectors:'chip'};
-const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',lastSearch:'',fromSearch:false,companies:[],devices:[],pairs:[]};let client;
+const $=s=>document.querySelector(s);const state={route:'home',kind:null,brand:null,device:null,search:'',lastSearch:'',fromSearch:false,companies:[],devices:[],baseDevices:[],pairs:[],externalParts:[]};let client;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // All available company marks are served locally; no third-party image roundtrips.
 const localBrandLogos=new Set(["apple", "asus", "htc", "huawei", "lenovo", "lg", "motorola", "nokia", "samsung", "sony"]);
@@ -77,10 +77,72 @@ function searchScore(entry,query){const q=normalizeText(query);if(!q)return -1;c
 function searchDevices(query,limit=120,company=null){if(!normalizeText(query))return [];return searchIndex.filter(e=>(!company||e.d.company===company)).map(e=>({e,score:searchScore(e,query)})).filter(x=>x.score>=0).sort((a,b)=>b.score-a.score||a.e.d.name.length-b.e.d.name.length||a.e.i-b.e.i).slice(0,limit).map(x=>x.e.d);}
 function deviceMatchesQuery(d,q){const entry=searchMap.get(d.id);return entry?searchScore(entry,q)>=0:deviceKeys(d).some(k=>k.includes(normalizeText(q)));}
 function matchingDeviceIds(value){const raw=String(value||'');const found=state.devices.find(d=>d.id===raw);if(found)return new Set([found.id]);const key=normalizeText(raw);return new Set(state.devices.filter(d=>deviceKeys(d).has(key)).map(d=>d.id));}
-function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}return matches;}
+
+// Supplier product groups are separate physical parts, not an all-to-all compatibility claim.
+const SUPPLIER_CATALOG='./data/all_spares_connectors.json';
+const SUPPLIER_IMPORTED_IDS=new Set(['857598','898630','896451']); // already stored with user's original photos
+const SUPPLIER_BRANDS=['Samsung','Huawei','Motorola','Nokia','Xiaomi','Infinix','Tecno','Lenovo','Ulefone','Blackview','ZTE','Oppo','Realme','Alcatel','Asus','Acer','Explay','Sony','HTC','LG','Vivo','Honor','Google'];
+function supplierModel(label){
+ const raw=String(label||'').trim();
+ const company=SUPPLIER_BRANDS.find(b=>raw.toLowerCase().startsWith(b.toLowerCase()+' '));
+ if(!company)return null;
+ let name=raw.slice(company.length).trim();
+ if(company==='Samsung'&&/\bGalaxy\b/i.test(name))name=name.slice(name.search(/\bGalaxy\b/i));
+ // Remove supplier-specific hardware codes, but preserve model years.
+ name=name.replace(/\s+(?:XT\d{4,}[\w-]*|PAMH\d+|PAYF\d+)\s*$/i,'').replace(/\s+\((?:[A-Z]{1,4}\d+[A-Z0-9, -]*|X\d+[A-Z0-9, -]*)\)\s*$/i,'').trim();
+ if(!name)return null;
+ return {company,name,label:raw,key:compactText(company+' '+name)};
+}
+function rebuildSupplierDevices(){
+ const devices=[...state.baseDevices],existing=new Set(devices.map(d=>compactText(d.company+' '+d.name)));
+ const companies=new Set(state.companies.map(c=>c.name));
+ for(const p of state.externalParts){
+  for(const m of p.parsedModels||[]){
+   if(!existing.has(m.key)){
+    existing.add(m.key);devices.push({id:'allspares-'+m.key,name:m.name,company:m.company,year:'',model_codes:''});
+   }
+   if(!companies.has(m.company)){companies.add(m.company);state.companies.push({id:'allspares-brand-'+m.company,name:m.company,status:'نشط',logo_url:null});}
+  }
+ }
+ state.devices=devices.sort((a,b)=>a.name.localeCompare(b.name));
+ state.companies.sort((a,b)=>a.name.localeCompare(b.name));
+ rebuildSearchIndex();
+}
+function applySupplierData(json){
+ if(!Array.isArray(json?.products))return;
+ state.externalParts=json.products.filter(p=>p&&p.id&&Array.isArray(p.models)&&p.models.length&&
+  !SUPPLIER_IMPORTED_IDS.has(String(p.id))).map(p=>({...p,parsedModels:p.models.map(supplierModel).filter(Boolean)}))
+  .filter(p=>p.parsedModels.length);
+ rebuildSupplierDevices();render();
+}
+async function loadSupplierCatalog(){
+ try{
+  const response=await fetch(SUPPLIER_CATALOG,{cache:'no-cache'});
+  if(!response.ok)throw Error('Supplier catalog HTTP '+response.status);
+  const data=await response.json();applySupplierData(data);
+  try{const db=await offlineDatabase();await new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readwrite');tx.objectStore(OFFLINE_STORE).put(data,'supplier');tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error)});}catch(e){console.warn('Supplier offline cache',e)}
+ }catch(e){console.info('Supplier catalog not yet available:',e.message)}
+}
+async function loadSupplierOffline(){
+ try{const db=await offlineDatabase();const data=await new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readonly');const q=tx.objectStore(OFFLINE_STORE).get('supplier');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);tx.oncomplete=()=>db.close()});if(data)applySupplierData(data);}catch(e){console.warn('Supplier cache unavailable',e)}
+}
+function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
+// Add only supplier-listed model groups not already represented by user's photo imports.
+if(state.kind==='charging_sockets'){
+ const wanted=compactText(d.company+' '+d.name);
+ for(const part of state.externalParts){
+  if(!part.parsedModels.some(m=>m.key===wanted))continue;
+  const others=part.parsedModels.filter(m=>m.key!==wanted);
+  for(const m of (others.length?others:part.parsedModels)){
+   matches.push({id:'allspares-'+part.id,kind:'charging_sockets',label:m.label,image_url:part.image_url||null,source_url:part.url,pins:part.pins,plug_type:part.plug_type});
+  }
+ }
+}
+return matches;}
 
 function partGroupKey(p){
  const id=String(p.id||'');
+ if(id.startsWith('allspares-'))return id;
  if(id.startsWith('socket-gold-20261012-'))return 'socket-gold-20261012';
  if(id.startsWith('socket-list3-'))return 'socket-18pin-20261012';
  if(id.startsWith('socket-micro-usb-20261012-'))return 'socket-micro-20261012';
@@ -88,6 +150,7 @@ function partGroupKey(p){
  return p.kind+':'+(id.split('-').slice(0,3).join('-')||'other');
 }
 function partImageUrl(group){
+ if(group.key.startsWith('allspares-'))return state.externalParts.find(p=>'allspares-'+p.id===group.key)?.image_url||'';
  if(group.key==='socket-micro-20261012')return 'images/parts/micro-usb-5pin.svg';
  if(group.key==='socket-18pin-20261012')return 'https://i29.psgsm.net/all-spares.com/p/911338/480/charge-connector-18-pin-type-1-usb-type-c.jpg';
  return '';
@@ -120,8 +183,8 @@ function renderChargingPartDetails(el,d,matches){
   else status.textContent='صورة القطعة غير متوفرة';
   const heading=document.createElement('div');heading.className='part-photo-caption';
   const name=document.createElement('h3');name.textContent=partTitle;
-  const spec=document.createElement('p');spec.textContent=group.key==='socket-gold-20261012'?'USB Type-C · صورة القطعة الأصلية':group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
-  heading.append(name,spec);card.append(heading);
+  const spec=document.createElement('p');const supplier=group.key.startsWith('allspares-')?state.externalParts.find(p=>'allspares-'+p.id===group.key):null;spec.textContent=supplier?((supplier.plug_type||'سوكت شحن')+(supplier.pins?' · '+supplier.pins+' Pin':'')):group.key==='socket-gold-20261012'?'USB Type-C · صورة القطعة الأصلية':group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
+  heading.append(name,spec);if(supplier){const source=document.createElement('a');source.href=supplier.url;source.target='_blank';source.rel='noopener noreferrer';source.className='part-source';source.textContent='المصدر: All Spares · رقم '+supplier.id;heading.append(source)}card.append(heading);
   const hint=document.createElement('div');hint.className='part-info';hint.textContent='هذا سوكت شحن منفصل متوافق بحسب قائمة الموديلات المرفقة. تأكد من مطابقة شكل القطعة وعدد الأرجل قبل التركيب.';card.append(hint);
   const count=document.createElement('h3');count.className='part-compat-heading';count.textContent='الأجهزة المتوافقة ('+(group.key==='socket-gold-20261012'?group.items.length+1:group.items.length)+')';card.append(count);
   const brands=new Map();
@@ -216,7 +279,7 @@ const OFFLINE_DB='tawafuq-catalog-v1', OFFLINE_STORE='snapshots';
 function offlineDatabase(){return new Promise((resolve,reject)=>{if(!('indexedDB' in window))return reject(Error('Offline storage unavailable'));const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>request.result.createObjectStore(OFFLINE_STORE);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 async function loadOffline(){const db=await offlineDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readonly');const request=tx.objectStore(OFFLINE_STORE).get('catalog');request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);tx.oncomplete=()=>db.close();});}
 async function saveOffline(snapshot){const db=await offlineDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readwrite');tx.objectStore(OFFLINE_STORE).put(snapshot,'catalog');tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
-function applyCatalog(data){state.companies=data.companies;state.devices=data.devices;state.pairs=data.pairs;rebuildSearchIndex();render();}
+function applyCatalog(data){state.companies=data.companies;state.baseDevices=data.devices;state.pairs=data.pairs;rebuildSupplierDevices();render();}
 // Status messages are kept in the console, not displayed in the app UI.
 function offlineNotice(message){console.info('[توافقات]',message);}
 
@@ -231,13 +294,13 @@ let sdkPromise;
 function loadSupabaseSDK(){if(window.supabase?.createClient)return Promise.resolve();if(sdkPromise)return sdkPromise;
  sdkPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';script.async=true;script.onload=()=>window.supabase?.createClient?resolve():reject(Error('تعذر تشغيل مكتبة Supabase'));script.onerror=()=>reject(Error('تعذر تحميل مكتبة Supabase'));document.head.append(script);});return sdkPromise;}
 let syncing=false;
-async function refreshInBackground(){if(syncing||!navigator.onLine)return;syncing=true;try{await loadSupabaseSDK();await syncCatalog();}catch(e){console.warn('تعذر تحديث البيانات بالخلفية',e);}finally{syncing=false;}}
+async function refreshInBackground(){if(syncing||!navigator.onLine)return;syncing=true;try{await loadSupabaseSDK();await Promise.allSettled([syncCatalog(),loadSupplierCatalog()]);}catch(e){console.warn('تعذر تحديث البيانات بالخلفية',e);}finally{syncing=false;}}
 async function init(){let hasCache=false;
  // Never block the app shell or offline navigation on a network request.
  const loader=$('#loader');if(loader)loader.style.display='none';
  try{const saved=await loadOffline();if(saved&&Array.isArray(saved.companies)&&Array.isArray(saved.devices)&&Array.isArray(saved.pairs)){applyCatalog(saved);if(navigator.onLine)cacheBrandLogos(saved.companies);hasCache=true;offlineNotice('البيانات محفوظة على الجهاز ويمكن البحث بدون إنترنت');}}catch(e){console.warn('تعذر فتح البيانات المحفوظة',e);}
  if(!hasCache){render();offlineNotice(navigator.onLine?'جاري تحميل البيانات لأول مرة...':'لا توجد بيانات محفوظة؛ اتصل بالإنترنت مرة واحدة لتنزيلها');}
- if(navigator.onLine){refreshInBackground();}
+ await loadSupplierOffline();if(navigator.onLine){refreshInBackground();}
 }
 window.addEventListener('online',refreshInBackground);
 let searchFrame=0;$('#search').addEventListener('input',e=>{state.search=e.target.value.trim();cancelAnimationFrame(searchFrame);searchFrame=requestAnimationFrame(render)});$('#clearSearch').onclick=()=>{$('#search').value='';state.search='';render()};document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>goto(b.dataset.route,{brand:null,device:null,kind:b.dataset.route==='home'||b.dataset.route==='search'?null:state.kind,fromSearch:false}));$('#closeModal').onclick=closeSubmit;$('#submitModal').onclick=e=>{if(e.target.id==='submitModal')closeSubmit()};$('#submitForm').onsubmit=sendSubmission;pickers.forEach(id=>{const input=$('#'+id+'Search');input.addEventListener('focus',()=>showPicker(id));input.addEventListener('input',()=>{ $('#'+id).value='';input.classList.remove('selected');showPicker(id);});input.addEventListener('keydown',e=>{if(e.key==='Escape')closePickers();if(e.key==='Enter'&&!$('#'+id+'Results').hidden){e.preventDefault();const first=$('#'+id+'Results .device-option');if(first)first.click();}});});document.addEventListener('click',e=>{if(!e.target.closest('.device-picker'))closePickers();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#submitModal').hidden)closeSubmit();});document.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=svgIcon(el.dataset.icon)});init();
