@@ -174,7 +174,7 @@ function renderChargingPartDetails(el,d,matches){
   frame.append(status);card.append(frame);
   const imageSource=partImageUrl(group);
   const setImage=url=>{
-   if(!url||!(/^(https:\/\/|images\/parts\/[a-z0-9-]+\.svg$|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
+   if(!url||!(/^(https:\/\/|images\/parts\/[a-z0-9-]+\.svg$|\/api\/part-photo\?id=\d+(?:&source=[^\s]+)?$|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
    img.src=url;img.onload=()=>{status.remove();frame.replaceChildren(img);const expand=document.createElement('button');expand.type='button';expand.className='part-expand';expand.textContent='⛶';expand.setAttribute('aria-label','تكبير الصورة');expand.onclick=()=>img.click();frame.append(expand);};
    img.onerror=()=>{status.textContent='تعذر عرض صورة القطعة';};
    img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const bar=document.createElement('div');bar.className='part-photo-overlay-bar';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق');close.onclick=()=>overlay.remove();const ttl=document.createElement('strong');ttl.textContent='صورة القطعة';const download=document.createElement('a');download.href=img.src;download.download='charging-socket.svg';download.textContent='↓';download.setAttribute('aria-label','حفظ الصورة');bar.append(close,ttl,download);const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(bar,full);overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};document.body.append(overlay)};
