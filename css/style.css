@@ -117,3 +117,7 @@ body.part-view .cards{display:block}
  .part-model{font-size:11px}
  .part-selected-device{padding:0 3px 12px}
 }
+
+/* Compact three-column Lenovo model list, as in the approved reference. */
+.part-model-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:400px){.part-model-grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
