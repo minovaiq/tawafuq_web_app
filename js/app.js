@@ -93,8 +93,9 @@ function supplierModel(label){
  if(!name)return null;
  return {company,name,label:raw,key:compactText(company+' '+name)};
 }
+function supplierDeviceKey(d){let name=String(d.name||'');const prefix=String(d.company||'')+' ';if(name.toLowerCase().startsWith(prefix.toLowerCase()))name=name.slice(prefix.length);return compactText(d.company+' '+name)}
 function rebuildSupplierDevices(){
- const devices=[...state.baseDevices],existing=new Set(devices.map(d=>compactText(d.company+' '+d.name)));
+ const devices=[...state.baseDevices],existing=new Set(devices.map(supplierDeviceKey));
  const companies=new Set(state.companies.map(c=>c.name));
  for(const p of state.externalParts){
   for(const m of p.parsedModels||[]){
@@ -128,8 +129,8 @@ async function loadSupplierOffline(){
 }
 function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
 // Add only supplier-listed model groups not already represented by user's photo imports.
-if(state.kind==='charging_sockets'){
- const wanted=compactText(d.company+' '+d.name);
+if(kind==='charging_sockets'){
+ const wanted=supplierDeviceKey(d);
  for(const part of state.externalParts){
   if(!part.parsedModels.some(m=>m.key===wanted))continue;
   const others=part.parsedModels.filter(m=>m.key!==wanted);
@@ -179,6 +180,7 @@ function renderChargingPartDetails(el,d,matches){
    img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const bar=document.createElement('div');bar.className='part-photo-overlay-bar';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق');close.onclick=()=>overlay.remove();const ttl=document.createElement('strong');ttl.textContent='صورة القطعة';const download=document.createElement('a');download.href=img.src;download.download='charging-socket.svg';download.textContent='↓';download.setAttribute('aria-label','حفظ الصورة');bar.append(close,ttl,download);const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(bar,full);overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};document.body.append(overlay)};
   };
   if(imageSource)setImage(imageSource);
+  else if(group.key.startsWith('allspares-')){const sourcePart=state.externalParts.find(p=>'allspares-'+p.id===group.key);status.replaceChildren();const link=document.createElement('a');link.href=sourcePart?.url||'https://all-spares.com/en/spares/connectors/charge-connectors/';link.target='_blank';link.rel='noopener noreferrer';link.textContent='عرض صورة القطعة في موقع المورد';status.append(link)}
   else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}let url=null;if(group.key==='socket-gold-20261012'){const {data,error}=await client.from('tawafuq_part_photos').select('image_data').eq('id',group.key).maybeSingle();if(error)throw error;url=data?.image_data;}else{const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;url=data?.image_url;}if(!frame.isConnected)return;if(url)setImage(url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
   else status.textContent='صورة القطعة غير متوفرة';
   const heading=document.createElement('div');heading.className='part-photo-caption';
