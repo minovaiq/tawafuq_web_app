@@ -57,8 +57,22 @@ const wordAliases={كامون:'camon',كامن:'camon',كومون:'camon',كام
 function normalizeText(value){let v=String(value??'').toLowerCase().normalize('NFKC').replace(/[\u064b-\u065f\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[٠-٩۰-۹]/g,c=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)>=0?'٠١٢٣٤٥٦٧٨٩'.indexOf(c):'۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace(/([\p{L}])([0-9])/gu,'$1 $2').replace(/([0-9])([\p{L}])/gu,'$1 $2').replace(/[^\p{L}\p{N}]+/gu,' ').trim();return v.split(/\s+/).map(w=>wordAliases[w]||w).join(' ');}
 function compactText(value){return normalizeText(value).replace(/ /g,'');}
 function deviceKeys(d){const name=normalizeText(d.name),company=normalizeText(d.company),keys=new Set([name,normalizeText(company+' '+name)]);const prefixes=[company,...(brandAliases[company]||[]).map(normalizeText)];for(const prefix of prefixes){if(name.startsWith(prefix+' '))keys.add(name.slice(prefix.length+1));}return keys;}
+// Model codes and legacy duplicate names are search aliases, not separate devices.
+const modelSearchAliases={
+ 'Samsung|Galaxy A20s':['Galaxy A20s (A207)','Galaxy A20s (A207F/DS)','A207','A207F/DS'],
+ 'Samsung|Galaxy A04':['Galaxy A04 (A045)','A045'],
+ 'Samsung|Galaxy A05':['Galaxy A05 (A055)','A055'],
+ 'Samsung|Galaxy A06':['Galaxy A06 (A065)','A065'],
+ 'Samsung|Galaxy A22 5G':['Galaxy A22 5G (A226)','A226'],
+ 'Nokia|C22':['Nokia C22'],
+ 'Nokia|C32':['Nokia C32'],
+ 'Nokia|G10':['Nokia G10'],
+ 'Nokia|G11':['Nokia G11'],
+ 'Nokia|G20':['Nokia G20'],
+ 'Nokia|G21':['Nokia G21']
+};
 let searchIndex=[],searchMap=new Map();
-function rebuildSearchIndex(){searchIndex=state.devices.map((d,i)=>{const keys=[...deviceKeys(d)];const company=normalizeText(d.company);const all=[...new Set([...keys,...keys.map(k=>company+' '+k),...(brandAliases[company]||[]).flatMap(a=>keys.map(k=>normalizeText(a)+' '+k))])];return {d,i,keys:all,compact:all.map(k=>k.replace(/ /g,'')),company};});searchMap=new Map(searchIndex.map(x=>[x.d.id,x]));}
+function rebuildSearchIndex(){searchIndex=state.devices.map((d,i)=>{const keys=[...deviceKeys(d),...(modelSearchAliases[d.company+'|'+d.name]||[]).map(normalizeText)];const company=normalizeText(d.company);const all=[...new Set([...keys,...keys.map(k=>company+' '+k),...(brandAliases[company]||[]).flatMap(a=>keys.map(k=>normalizeText(a)+' '+k))])];return {d,i,keys:all,compact:all.map(k=>k.replace(/ /g,'')),company};});searchMap=new Map(searchIndex.map(x=>[x.d.id,x]));}
 function searchScore(entry,query){const q=normalizeText(query);if(!q)return -1;const qc=q.replace(/ /g,''),words=q.split(' ');let best=-1;for(let i=0;i<entry.keys.length;i++){const k=entry.keys[i],kc=entry.compact[i];if(k===q||kc===qc)best=Math.max(best,1000);else if(k.startsWith(q)||kc.startsWith(qc))best=Math.max(best,800);else if(k.includes(q)||kc.includes(qc))best=Math.max(best,650);else if(words.every(w=>k.includes(w)))best=Math.max(best,450);}return best;}
 function searchDevices(query,limit=120,company=null){if(!normalizeText(query))return [];return searchIndex.filter(e=>(!company||e.d.company===company)).map(e=>({e,score:searchScore(e,query)})).filter(x=>x.score>=0).sort((a,b)=>b.score-a.score||a.e.d.name.length-b.e.d.name.length||a.e.i-b.e.i).slice(0,limit).map(x=>x.e.d);}
 function deviceMatchesQuery(d,q){const entry=searchMap.get(d.id);return entry?searchScore(entry,q)>=0:deviceKeys(d).some(k=>k.includes(normalizeText(q)));}
