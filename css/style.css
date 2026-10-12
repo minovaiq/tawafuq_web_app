@@ -121,3 +121,17 @@ body.part-view .cards{display:block}
 /* Compact three-column Lenovo model list, as in the approved reference. */
 .part-model-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:400px){.part-model-grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.part-expand{position:absolute;bottom:10px;right:10px;border:1px solid #e8dcf7;background:#fff;color:#6630b3;border-radius:50%;width:39px;height:39px;font-size:24px;box-shadow:0 2px 9px #0001;cursor:zoom-in}
+.part-photo-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+.part-photo-overlay-bar{position:absolute;top:max(18px,env(safe-area-inset-top));left:0;right:0;padding:0 20px;display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:18px;direction:ltr}
+.part-photo-overlay-bar button,.part-photo-overlay-bar a{background:none;border:0;color:#fff;font-size:36px;text-decoration:none;min-width:40px;text-align:center}
+.part-photo-overlay-bar strong{font-size:18px;font-weight:700}
+.part-brand summary{display:flex;align-items:center;gap:8px;direction:rtl}
+.part-brand summary:before{order:3;margin-right:auto}
+.part-brand-badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 7px;color:#fff;background:#6932b5;font-size:11px;border-radius:4px;font-weight:700;direction:ltr}
+.part-brand-infinix{background:#101010}
+.part-brand-lenovo{background:#e82428}
+.part-brand-tecno{background:#2367a5}
+.part-brand-motorola{background:#3154ad}
+.part-brand-ulefone{background:#424242}
