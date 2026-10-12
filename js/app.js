@@ -73,6 +73,7 @@ function partGroupKey(p){
  return p.kind+':'+(id.split('-').slice(0,3).join('-')||'other');
 }
 function partImageUrl(group){
+ if(group.key==='socket-micro-20261012')return 'images/parts/micro-usb-5pin.svg';
  if(group.key==='socket-18pin-20261012')return 'https://i29.psgsm.net/all-spares.com/p/911338/480/charge-connector-18-pin-type-1-usb-type-c.jpg';
  return '';
 }
@@ -104,25 +105,29 @@ function renderChargingPartDetails(el,d,matches){
   else status.textContent='صورة القطعة غير متوفرة';
   const heading=document.createElement('div');heading.className='part-photo-caption';
   const name=document.createElement('h3');name.textContent=partTitle;
-  const spec=document.createElement('p');spec.textContent=group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
+  const spec=document.createElement('p');spec.textContent=group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
   heading.append(name,spec);card.append(heading);
-  const hint=document.createElement('div');hint.className='part-info';hint.textContent='توافقات بحسب قائمة قطع الغيار؛ طابق شكل القطعة وعدد الأرجل قبل التركيب.';card.append(hint);
+  const hint=document.createElement('div');hint.className='part-info';hint.textContent='هذا سوكت شحن منفصل متوافق بحسب قائمة الموديلات المرفقة. تأكد من مطابقة شكل القطعة وعدد الأرجل قبل التركيب.';card.append(hint);
   const count=document.createElement('h3');count.className='part-compat-heading';count.textContent='الأجهزة المتوافقة ('+group.items.length+')';card.append(count);
   const brands=new Map();
-  for(const p of group.items){const match=state.devices.find(x=>x.name===p.label||p.label===x.company+' '+x.name);
+  for(const p of group.items){
+   const match=state.devices.find(x=>x.name===p.label||p.label===x.company+' '+x.name);
    const company=match?.company||p.label.split(' ')[0]||'أخرى';
-   if(!brands.has(company))brands.set(company,[]);
-   brands.get(company).push(match?.name||p.label.replace(new RegExp('^'+company+' '),''));
+   if(!brands.has(company))brands.set(company,new Map());
+   const modelName=(match?.name||p.label).replace(new RegExp('^'+company+' ','i'),'');
+   const codes=Array.isArray(match?.model_codes)?match.model_codes.filter(Boolean):[];
+   const display=modelName+(codes.length?' ('+codes.join(', ')+')':'');
+   brands.get(company).set(modelName,display);
   }
-  for(const [company,models] of [...brands].sort((a,b)=>b[1].length-a[1].length)){
+  for(const [company,models] of [...brands].sort((a,b)=>b[1].size-a[1].size)){
    const section=document.createElement('details');section.className='part-brand';section.open=true;
-   const summary=document.createElement('summary');summary.textContent=company+' ('+models.length+')';section.append(summary);
+   const summary=document.createElement('summary');summary.textContent=company+' ('+models.size+')';section.append(summary);
    const grid=document.createElement('div');grid.className='part-model-grid';
-   const unique=[...new Set(models)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-   unique.forEach((model,i)=>{const cell=document.createElement('span');cell.className='part-model';cell.textContent=model;if(i>=8)cell.classList.add('part-model-extra');grid.append(cell)});
-   section.append(grid);
-   if(unique.length>8){const more=document.createElement('button');more.type='button';more.className='part-show-more';more.textContent='عرض كل الأجهزة ('+unique.length+')';more.onclick=()=>{section.classList.toggle('expanded');more.textContent=section.classList.contains('expanded')?'عرض أقل':'عرض كل الأجهزة ('+unique.length+')'};section.append(more)}
-   card.append(section);
+   if(company==='Lenovo')grid.classList.add('part-model-grid-3');
+   [...models.entries()].sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})).forEach(([model,display])=>{
+    const cell=document.createElement('span');cell.className='part-model';cell.textContent=display;grid.append(cell)
+   });
+   section.append(grid);card.append(section);
   }
   el.append(card);
  }
@@ -171,7 +176,7 @@ function applyCatalog(data){state.companies=data.companies;state.devices=data.de
 function offlineNotice(message){console.info('[توافقات]',message);}
 
 async function syncCatalog(){if(!window.supabase?.createClient)throw Error('مكتبة Supabase غير متوفرة');if(!client)client=window.supabase.createClient(SUPABASE_URL,KEY);
- const [companies,devices,pairs]=await Promise.all([fetchAll('tawafuq_companies','id,name,status,logo_url'),fetchAll('tawafuq_devices','id,name,company,year'),fetchAll('tawafuq_compatibilities','id,kind,device,compatible,status')]);
+ const [companies,devices,pairs]=await Promise.all([fetchAll('tawafuq_companies','id,name,status,logo_url'),fetchAll('tawafuq_devices','id,name,company,year,model_codes'),fetchAll('tawafuq_compatibilities','id,kind,device,compatible,status')]);
  const snapshot={companies:companies.filter(x=>x.status!=='غير نشط').sort((a,b)=>a.name.localeCompare(b.name)),devices:devices.sort((a,b)=>a.name.localeCompare(b.name)),pairs:pairs.filter(p=>['معتمد','مؤكد','نشط','approved','verified'].includes((p.status||'').toLowerCase())),updatedAt:Date.now()};
  let stored=false;try{await saveOffline(snapshot);stored=true;}catch(e){console.warn('تعذر حفظ بيانات البحث محلياً',e);}
  applyCatalog(snapshot);cacheBrandLogos(snapshot.companies);offlineNotice(stored?'تم تحديث البيانات وحفظها على الجهاز للاستخدام بدون إنترنت':'تم تحديث البيانات، لكن تعذر حفظها على الجهاز');
