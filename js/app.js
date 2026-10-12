@@ -64,13 +64,91 @@ function searchDevices(query,limit=120,company=null){if(!normalizeText(query))re
 function deviceMatchesQuery(d,q){const entry=searchMap.get(d.id);return entry?searchScore(entry,q)>=0:deviceKeys(d).some(k=>k.includes(normalizeText(q)));}
 function matchingDeviceIds(value){const raw=String(value||'');const found=state.devices.find(d=>d.id===raw);if(found)return new Set([found.id]);const key=normalizeText(raw);return new Set(state.devices.filter(d=>deviceKeys(d).has(key)).map(d=>d.id));}
 function compatibleFor(d){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(state.kind&&p.kind!==state.kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}return matches;}
+
+function partGroupKey(p){
+ const id=String(p.id||'');
+ if(id.startsWith('socket-list3-'))return 'socket-18pin-20261012';
+ if(id.startsWith('socket-micro-usb-20261012-'))return 'socket-micro-20261012';
+ if(id.startsWith('socket-s10'))return 'socket-s10';
+ return p.kind+':'+(id.split('-').slice(0,3).join('-')||'other');
+}
+function partImageUrl(group){
+ if(group.key==='socket-18pin-20261012')return 'https://i29.psgsm.net/all-spares.com/p/911338/480/charge-connector-18-pin-type-1-usb-type-c.jpg';
+ return '';
+}
+function renderChargingPartDetails(el,d,matches){
+ const groups=new Map();
+ for(const p of matches){const key=partGroupKey(p);if(!groups.has(key))groups.set(key,{key,items:[]});groups.get(key).items.push(p)}
+ const partTitle=kinds.find(k=>k[0]===state.kind)?.[1]||'قطعة الشحن';
+ const top=document.createElement('div');top.className='part-detail-top';
+ const back=document.createElement('button');back.type='button';back.className='part-back';back.textContent='‹';back.setAttribute('aria-label','رجوع');back.onclick=()=>goto('models',{device:null});
+ const heading=document.createElement('strong');heading.textContent='تفاصيل القطعة';
+ const fav=document.createElement('span');fav.className='part-heart';fav.textContent='♡';fav.setAttribute('aria-hidden','true');
+ top.append(back,heading,fav);el.append(top);
+ const selected=document.createElement('div');selected.className='part-selected-device';selected.innerHTML='<strong>'+esc(d.name)+'</strong><span>'+esc(d.company)+(d.year?' · '+esc(d.year):'')+'</span>';el.append(selected);
+ for(const group of groups.values()){
+  const card=document.createElement('section');card.className='part-card';
+  const frame=document.createElement('div');frame.className='part-photo-frame';
+  const img=document.createElement('img');img.alt='صورة '+partTitle;img.loading='eager';img.decoding='async';
+  const status=document.createElement('p');status.className='part-photo-status';status.textContent='جاري تحميل صورة القطعة...';
+  frame.append(status);card.append(frame);
+  const imageSource=partImageUrl(group);
+  const setImage=url=>{
+   if(!url||!(/^(https:\/\/|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
+   img.src=url;img.onload=()=>{status.remove();frame.replaceChildren(img);};
+   img.onerror=()=>{status.textContent='تعذر عرض صورة القطعة';};
+   img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(full);overlay.onclick=()=>overlay.remove();document.body.append(overlay)};
+  };
+  if(imageSource)setImage(imageSource);
+  else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;if(!frame.isConnected)return;if(data?.image_url)setImage(data.image_url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
+  else status.textContent='صورة القطعة غير متوفرة';
+  const heading=document.createElement('div');heading.className='part-photo-caption';
+  const name=document.createElement('h3');name.textContent=partTitle;
+  const spec=document.createElement('p');spec.textContent=group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
+  heading.append(name,spec);card.append(heading);
+  const hint=document.createElement('div');hint.className='part-info';hint.textContent='توافقات بحسب قائمة قطع الغيار؛ طابق شكل القطعة وعدد الأرجل قبل التركيب.';card.append(hint);
+  const count=document.createElement('h3');count.className='part-compat-heading';count.textContent='الأجهزة المتوافقة ('+group.items.length+')';card.append(count);
+  const brands=new Map();
+  for(const p of group.items){const match=state.devices.find(x=>x.name===p.label||p.label===x.company+' '+x.name);
+   const company=match?.company||p.label.split(' ')[0]||'أخرى';
+   if(!brands.has(company))brands.set(company,[]);
+   brands.get(company).push(match?.name||p.label.replace(new RegExp('^'+company+' '),''));
+  }
+  for(const [company,models] of [...brands].sort((a,b)=>b[1].length-a[1].length)){
+   const section=document.createElement('details');section.className='part-brand';section.open=true;
+   const summary=document.createElement('summary');summary.textContent=company+' ('+models.length+')';section.append(summary);
+   const grid=document.createElement('div');grid.className='part-model-grid';
+   const unique=[...new Set(models)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+   unique.forEach((model,i)=>{const cell=document.createElement('span');cell.className='part-model';cell.textContent=model;if(i>=8)cell.classList.add('part-model-extra');grid.append(cell)});
+   section.append(grid);
+   if(unique.length>8){const more=document.createElement('button');more.type='button';more.className='part-show-more';more.textContent='عرض كل الأجهزة ('+unique.length+')';more.onclick=()=>{section.classList.toggle('expanded');more.textContent=section.classList.contains('expanded')?'عرض أقل':'عرض كل الأجهزة ('+unique.length+')'};section.append(more)}
+   card.append(section);
+  }
+  el.append(card);
+ }
+}
 function filteredDevices(){return state.devices.filter(d=>!state.brand||d.company===state.brand);}
-function render(){const searchWrap=document.querySelector('.search-wrap');searchWrap.hidden=state.route!=='models'&&state.route!=='search';const partName=kinds.find(k=>k[0]===state.kind)?.[1]||'القطعة';$('#search').placeholder=state.route==='models'?'ابحث عن موديل '+partName+' - '+(state.brand||''): 'ابحث في جميع الأجهزة';const box=$('#content');box.classList.toggle('two-col',state.route==='home'||state.route==='brands');box.replaceChildren();const add=(node)=>box.append(node);const crumb=$('#breadcrumbs');if(crumb)crumb.replaceChildren();
+function render(){document.body.classList.toggle('part-view',state.route==='detail'&&['charging_sockets','charging_boards'].includes(state.kind));const searchWrap=document.querySelector('.search-wrap');searchWrap.hidden=state.route!=='models'&&state.route!=='search';const partName=kinds.find(k=>k[0]===state.kind)?.[1]||'القطعة';$('#search').placeholder=state.route==='models'?'ابحث عن موديل '+partName+' - '+(state.brand||''): 'ابحث في جميع الأجهزة';const box=$('#content');box.classList.toggle('two-col',state.route==='home'||state.route==='brands');box.replaceChildren();const add=(node)=>box.append(node);const crumb=$('#breadcrumbs');if(crumb)crumb.replaceChildren();
  const title=t=>$('#sectionTitle').textContent=t;let n=0;
  if(state.route==='home'){title('أقسام قطع الغيار');kinds.forEach(([key,name,ico])=>add(tile(categoryIcons[key],name,'',()=>goto('brands',{kind:key,brand:null,device:null}))));n=kinds.length;}
  else if(state.route==='brands'){title('اختر الشركة');const list=state.companies;list.forEach(c=>add(brandTile(c,()=>goto('models',{brand:c.name,device:null}))));n=list.length;}
  else if(state.route==='models'){title('موديلات '+(state.brand||'')+' - '+partName);const list=state.search?searchDevices(state.search,250,state.brand):filteredDevices();list.forEach(d=>add(tile('phone',d.name,d.year||'',()=>goto('detail',{device:d}))));n=list.length;}
- else if(state.route==='detail'){const d=state.device;title('توافقات '+d.name);const matches=compatibleFor(d);const el=document.createElement('div');el.className='detail';const names=new Map(state.devices.flatMap(x=>[[x.id,x.name],[x.name,x.name]]));el.innerHTML=`<h3>${esc(d.name)}</h3><p class="muted">${esc(d.company)} · ${esc(d.year||'')}</p><h3>الأجهزة المتوافقة (${matches.length})</h3>`;if(matches.length){matches.forEach(p=>{const div=document.createElement('div');div.className='pill';div.textContent=(kinds.find(k=>k[0]===p.kind)?.[1]||p.kind)+' — '+p.label;if(p.kind==='charging_sockets'||p.kind==='charging_boards'){const photo=document.createElement('div');photo.className='charging-photo';if(p.image_url&&(/^(https:\/\/|data:image\/jpeg;base64,)/i.test(p.image_url))&&!/(img\.gsmnet\.ro\/800X800\/products\/194488\/|gsmok\.pl\/pliki_opis\/norm_plytka-tasma-flex-xiaomi-redmi-14c)/i.test(p.image_url)){const img=document.createElement('img');img.src=p.image_url;img.alt='صورة سوكت الشحن لـ '+p.label;img.loading='lazy';img.style.cssText='display:block;max-width:100%;max-height:230px;object-fit:contain;margin:10px auto;border-radius:12px;cursor:zoom-in';img.onclick=()=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out';const large=document.createElement('img');large.src=img.src;large.alt=img.alt;large.style.cssText='max-width:95vw;max-height:90vh;object-fit:contain';overlay.append(large);overlay.onclick=()=>overlay.remove();document.body.append(overlay);};img.onerror=()=>{photo.textContent='صورة سوكت الشحن غير متوفرة بعد التحقق';};photo.append(img);}else{photo.textContent='جاري تحميل صورة القطعة...';photo.style.cssText='font-size:12px;opacity:.65;margin-top:8px';if(p.id){(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',p.id).maybeSingle();if(error)throw error;if(!photo.isConnected)return;const url=data?.image_url;if(url&&/^(https:\/\/|data:image\/jpeg;base64,)/i.test(url)){const img=document.createElement('img');img.src=url;img.alt='صورة قطعة الشحن';img.style.cssText='display:block;width:100%;max-width:360px;height:auto;aspect-ratio:1/1;object-fit:contain;background:#fff;margin:12px auto;border-radius:12px;cursor:zoom-in';img.onclick=()=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:16px';const full=document.createElement('img');full.src=url;full.style.cssText='max-width:96vw;max-height:90vh;object-fit:contain;background:white';overlay.append(full);overlay.onclick=()=>overlay.remove();document.body.append(overlay)};img.onerror=()=>{photo.textContent='تعذر عرض الصورة';};photo.replaceChildren(img);}else photo.textContent='صورة القطعة غير متوفرة';}catch(e){photo.textContent='تعذر تحميل الصورة، حاول تحديث الصفحة';console.warn('charging image',e);}})();}}div.append(photo);}el.append(div);});}else{const t=document.createElement('p');t.className='muted';t.textContent='ماكو توافقات معتمدة لهذا الجهاز حالياً.';el.append(t)}const suggest=document.createElement('button');suggest.className='primary';suggest.textContent='إرسال توافق';suggest.onclick=()=>openSubmit(d);el.append(suggest);add(el);n=matches.length;}
+
+ else if(state.route==='detail'){
+  const d=state.device;const matches=compatibleFor(d);
+  const isPart=['charging_sockets','charging_boards'].includes(state.kind);
+  document.body.classList.toggle('part-view',isPart);
+  title(isPart?'تفاصيل القطعة':'توافقات '+d.name);
+  const el=document.createElement('div');el.className=isPart?'part-detail':'detail';
+  if(isPart&&matches.length){
+   renderChargingPartDetails(el,d,matches);
+  }else{
+   el.innerHTML=`<h3>${esc(d.name)}</h3><p class="muted">${esc(d.company)} · ${esc(d.year||'')}</p><h3>الأجهزة المتوافقة (${matches.length})</h3>`;
+   if(matches.length){const list=document.createElement('div');list.className='compat-simple-list';for(const p of matches){const div=document.createElement('div');div.className='pill';div.textContent=(kinds.find(k=>k[0]===p.kind)?.[1]||p.kind)+' — '+p.label;list.append(div)}el.append(list)}
+   else{const t=document.createElement('p');t.className='muted';t.textContent='ماكو توافقات معتمدة لهذا الجهاز حالياً.';el.append(t)}
+  }
+  const suggest=document.createElement('button');suggest.className='primary suggest-compat';suggest.textContent='إرسال توافق';suggest.onclick=()=>openSubmit(d);el.append(suggest);add(el);n=matches.length;
+ }
  else if(state.route==='search'){title('البحث في جميع الأجهزة');const q=state.search;const list=searchDevices(q,120);list.forEach(d=>add(tile('search',d.name,d.company+' · '+(d.year||''),()=>goto('detail',{device:d,brand:d.company}))));if(!q)add(empty('اكتب اسم جهاز أو شركة للبحث'));n=list.length;}
  else if(state.route==='submit'){title('إرسال توافق');add(tile('send','إرسال توافق','',()=>openSubmit()));n=1;openSubmit();}
  if(!box.children.length)add(empty('ماكو نتائج حالياً'));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.route===state.route||(state.route==='models'||state.route==='detail')&&b.dataset.route==='brands'));
