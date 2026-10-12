@@ -72,6 +72,11 @@ def product_id(soup):
 
 def image_url(soup):
     candidates = []
+    for img in soup.select('img'):
+        if 'charge connector' in img.get('alt', '').lower():
+            for key in ('data-zoom-image', 'data-src', 'src'):
+                if img.get(key):
+                    candidates.append(img[key])
     for attr in (("meta[property='og:image']", "content"),
                  ("meta[name='twitter:image']", "content"),
                  ("img[itemprop='image']", "src")):
