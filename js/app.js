@@ -150,12 +150,7 @@ function partGroupKey(p){
  if(id.startsWith('socket-s10'))return 'socket-s10';
  return p.kind+':'+(id.split('-').slice(0,3).join('-')||'other');
 }
-function partImageUrl(group){
- if(group.key.startsWith('allspares-'))return state.externalParts.find(p=>'allspares-'+p.id===group.key)?.image_url||'';
- if(group.key==='socket-micro-20261012')return 'images/parts/micro-usb-5pin.svg';
- if(group.key==='socket-18pin-20261012')return 'https://i29.psgsm.net/all-spares.com/p/911338/480/charge-connector-18-pin-type-1-usb-type-c.jpg';
- return '';
-}
+function partImageUrl(group){return '';}
 function renderChargingPartDetails(el,d,matches){
  const groups=new Map();
  for(const p of matches){const key=partGroupKey(p);if(!groups.has(key))groups.set(key,{key,items:[]});groups.get(key).items.push(p)}
@@ -179,10 +174,26 @@ function renderChargingPartDetails(el,d,matches){
    img.onerror=()=>{status.replaceChildren();const supplier=group.key.startsWith('allspares-')?state.externalParts.find(p=>'allspares-'+p.id===group.key):null;if(supplier){const a=document.createElement('a');a.href=supplier.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='عرض الصورة الأصلية بموقع All Spares';status.append(a)}else status.textContent='تعذر عرض صورة القطعة';};
    img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const bar=document.createElement('div');bar.className='part-photo-overlay-bar';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق');close.onclick=()=>overlay.remove();const ttl=document.createElement('strong');ttl.textContent='صورة القطعة';const download=document.createElement('a');download.href=img.src;download.download='charging-socket.svg';download.textContent='↓';download.setAttribute('aria-label','حفظ الصورة');bar.append(close,ttl,download);const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(bar,full);overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};document.body.append(overlay)};
   };
-  if(imageSource)setImage(imageSource);
-  else if(group.key.startsWith('allspares-')){const sourcePart=state.externalParts.find(p=>'allspares-'+p.id===group.key);status.replaceChildren();const link=document.createElement('a');link.href=sourcePart?.url||'https://all-spares.com/en/spares/connectors/charge-connectors/';link.target='_blank';link.rel='noopener noreferrer';link.textContent='عرض صورة القطعة في موقع المورد';status.append(link)}
-  else if(group.items[0]?.id)(async()=>{try{if(!client&&window.supabase?.createClient)client=window.supabase.createClient(SUPABASE_URL,KEY);if(!client){await loadSupabaseSDK();client=window.supabase.createClient(SUPABASE_URL,KEY)}let url=null;if(group.key==='socket-gold-20261012'){const {data,error}=await client.from('tawafuq_part_photos').select('image_data').eq('id',group.key).maybeSingle();if(error)throw error;url=data?.image_data;}else{const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();if(error)throw error;url=data?.image_url;}if(!frame.isConnected)return;if(url)setImage(url);else status.textContent='صورة القطعة غير متوفرة';}catch(e){status.textContent='تعذر تحميل الصورة';console.warn('Part image',e)}})();
-  else status.textContent='صورة القطعة غير متوفرة';
+  // Each physical socket has one photo in Supabase, never an external vendor URL.
+  // The image is requested once per part card, not for every compatible model.
+  (async()=>{try{
+   await loadSupabaseSDK();
+   if(!client)client=window.supabase.createClient(SUPABASE_URL,KEY);
+   let url=null;
+   if(!group.key.startsWith('allspares-')){
+    const {data,error}=await client.from('tawafuq_part_photos').select('image_data').eq('id',group.key).maybeSingle();
+    if(error)throw error;
+    url=data?.image_data||null;
+   }
+   if(!url&&group.items[0]?.id){
+    const {data,error}=await client.from('tawafuq_compatibilities').select('image_url').eq('id',group.items[0].id).maybeSingle();
+    if(error)throw error;
+    if(data?.image_url?.startsWith('data:image/'))url=data.image_url;
+   }
+   if(!frame.isConnected)return;
+   if(url)setImage(url);
+   else status.textContent='صورة هذه القطعة غير محفوظة بعد';
+  }catch(e){status.textContent='تعذر تحميل الصورة من قاعدة البيانات';console.warn('Part image',e)}})();
   const heading=document.createElement('div');heading.className='part-photo-caption';
   const name=document.createElement('h3');name.textContent=partTitle;
   const spec=document.createElement('p');const supplier=group.key.startsWith('allspares-')?state.externalParts.find(p=>'allspares-'+p.id===group.key):null;spec.textContent=supplier?((supplier.plug_type||'سوكت شحن')+(supplier.pins?' · '+supplier.pins+' Pin':'')):group.key==='socket-gold-20261012'?'USB Type-C · صورة القطعة الأصلية':group.key==='socket-18pin-20261012'?'USB Type-C · 18 Pin':group.key==='socket-micro-20261012'?'Micro USB (5 Pin)':group.key==='socket-s10'?'USB Type-C · 26 Pin':'قطعة غيار متوافقة';
