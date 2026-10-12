@@ -95,7 +95,7 @@ function renderChargingPartDetails(el,d,matches){
   frame.append(status);card.append(frame);
   const imageSource=partImageUrl(group);
   const setImage=url=>{
-   if(!url||!(/^(https:\/\/|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
+   if(!url||!(/^(https:\/\/|images\/parts\/[a-z0-9-]+\.svg$|data:image\/(?:jpeg|webp|png);base64,)/i.test(url)))return;
    img.src=url;img.onload=()=>{status.remove();frame.replaceChildren(img);};
    img.onerror=()=>{status.textContent='تعذر عرض صورة القطعة';};
    img.onclick=()=>{const overlay=document.createElement('div');overlay.className='part-photo-overlay';const full=document.createElement('img');full.src=img.src;full.alt=img.alt;overlay.append(full);overlay.onclick=()=>overlay.remove();document.body.append(overlay)};
