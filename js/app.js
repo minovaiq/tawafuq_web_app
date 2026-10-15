@@ -127,7 +127,36 @@ async function loadSupplierCatalog(){
 async function loadSupplierOffline(){
  try{const db=await offlineDatabase();const data=await new Promise((resolve,reject)=>{const tx=db.transaction(OFFLINE_STORE,'readonly');const q=tx.objectStore(OFFLINE_STORE).get('supplier');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);tx.oncomplete=()=>db.close()});if(data)applySupplierData(data);}catch(e){console.warn('Supplier cache unavailable',e)}
 }
-function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of state.pairs){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
+// Index pair references once per catalog, so counts on model cards stay fast.
+let indexedPairs=null,pairReferenceIndex=new Map();
+function matchingPairs(refs,keys){
+ if(indexedPairs!==state.pairs){
+  indexedPairs=state.pairs;pairReferenceIndex=new Map();
+  state.pairs.forEach((pair,index)=>{
+   for(const ref of new Set([pair.device,pair.compatible])){
+    for(const key of ['raw:'+ref,'normalized:'+normalizeText(ref)]){
+     if(!pairReferenceIndex.has(key))pairReferenceIndex.set(key,[]);
+     pairReferenceIndex.get(key).push(index);
+    }
+   }
+  });
+ }
+ const indices=new Set();
+ for(const ref of refs)for(const i of pairReferenceIndex.get('raw:'+ref)||[])indices.add(i);
+ for(const key of keys)for(const i of pairReferenceIndex.get('normalized:'+key)||[])indices.add(i);
+ return [...indices].sort((a,b)=>a-b).map(i=>state.pairs[i]);
+}
+function modelTile(d){
+ const card=tile('phone',d.name,d.year||'',()=>goto('detail',{device:d}));
+ card.classList.add('model-tile');
+ const count=compatibleFor(d,state.kind).length;
+ const badge=document.createElement('span');badge.className='model-compat-count';
+ badge.textContent=count+' توافق';
+ badge.setAttribute('aria-label','عدد التوافقات: '+count);
+ card.querySelector('.info').append(badge);
+ return card;
+}
+function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of matchingPairs(refs,keys)){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
 // Add only supplier-listed model groups not already represented by user's photo imports.
 if(kind==='charging_sockets'){
  const wanted=supplierDeviceKey(d);
@@ -229,7 +258,7 @@ function render(){document.body.classList.toggle('part-view',state.route==='deta
  const title=t=>$('#sectionTitle').textContent=t;let n=0;
  if(state.route==='home'){title('أقسام قطع الغيار');kinds.forEach(([key,name,ico])=>add(tile(categoryIcons[key],name,'',()=>goto('brands',{kind:key,brand:null,device:null}))));n=kinds.length;}
  else if(state.route==='brands'){title('اختر الشركة');const list=state.companies;list.forEach(c=>add(brandTile(c,()=>goto('models',{brand:c.name,device:null}))));n=list.length;}
- else if(state.route==='models'){title('موديلات '+(state.brand||'')+' - '+partName);const list=state.search?searchDevices(state.search,250,state.brand):filteredDevices();list.forEach(d=>add(tile('phone',d.name,d.year||'',()=>goto('detail',{device:d}))));n=list.length;}
+ else if(state.route==='models'){title('موديلات '+(state.brand||'')+' - '+partName);const list=state.search?searchDevices(state.search,250,state.brand):filteredDevices();list.forEach(d=>add(modelTile(d)));n=list.length;}
 
  else if(state.route==='search-kinds'){
   const d=state.device;
@@ -317,3 +346,4 @@ async function init(){let hasCache=false;
 }
 window.addEventListener('online',refreshInBackground);
 let searchFrame=0;$('#search').addEventListener('input',e=>{state.search=e.target.value.trim();cancelAnimationFrame(searchFrame);searchFrame=requestAnimationFrame(render)});$('#clearSearch').onclick=()=>{$('#search').value='';state.search='';render()};document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>goto(b.dataset.route,{brand:null,device:null,kind:b.dataset.route==='home'||b.dataset.route==='search'?null:state.kind,fromSearch:false}));$('#closeModal').onclick=closeSubmit;$('#submitModal').onclick=e=>{if(e.target.id==='submitModal')closeSubmit()};$('#submitForm').onsubmit=sendSubmission;pickers.forEach(id=>{const input=$('#'+id+'Search');input.addEventListener('focus',()=>showPicker(id));input.addEventListener('input',()=>{ $('#'+id).value='';input.classList.remove('selected');showPicker(id);});input.addEventListener('keydown',e=>{if(e.key==='Escape')closePickers();if(e.key==='Enter'&&!$('#'+id+'Results').hidden){e.preventDefault();const first=$('#'+id+'Results .device-option');if(first)first.click();}});});document.addEventListener('click',e=>{if(!e.target.closest('.device-picker'))closePickers();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#submitModal').hidden)closeSubmit();});document.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=svgIcon(el.dataset.icon)});init();
+
