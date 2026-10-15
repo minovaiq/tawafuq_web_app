@@ -56,7 +56,8 @@ const brandAliases={tecno:['تكنو','تيكنو'],infinix:['انفنكس','ا�
 const wordAliases={كامون:'camon',كامن:'camon',كومون:'camon',كاميون:'camon',سبارك:'spark',هوت:'hot',نوت:'note',نوتس:'note',بوفا:'pova',بوفا:'pova',بوفا:'pova',بوفا:'pova',ايفون:'iphone',ايفـون:'iphone',ايفن:'iphone',بلس:'plus',بلاس:'plus',برو:'pro',بريمير:'premier',ماكس:'max',لايت:'lite',لايتت:'lite',جالكسي:'galaxy',جلاكسي:'galaxy',كالكسي:'galaxy',ريدمي:'redmi',بوكو:'poco',تكنو:'tecno',تيكنو:'tecno',انفنكس:'infinix',انفنيكس:'infinix',انفينكس:'infinix',انفينيكس:'infinix',سامسونج:'samsung',سامسونك:'samsung',سامسونغ:'samsung',شاومي:'xiaomi',ابل:'apple',ريلمي:'realme',اوبو:'oppo',فيفو:'vivo',هونر:'honor',هواوي:'huawei',نوكيا:'nokia',موتورولا:'motorola',فورجي:'4g',فايفجي:'5g'};
 function normalizeText(value){let v=String(value??'').toLowerCase().normalize('NFKC').replace(/[\u064b-\u065f\u0670]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').replace(/[٠-٩۰-۹]/g,c=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)>=0?'٠١٢٣٤٥٦٧٨٩'.indexOf(c):'۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).replace(/([\p{L}])([0-9])/gu,'$1 $2').replace(/([0-9])([\p{L}])/gu,'$1 $2').replace(/[^\p{L}\p{N}]+/gu,' ').trim();return v.split(/\s+/).map(w=>wordAliases[w]||w).join(' ');}
 function compactText(value){return normalizeText(value).replace(/ /g,'');}
-function deviceKeys(d){const name=normalizeText(d.name),company=normalizeText(d.company),keys=new Set([name,normalizeText(company+' '+name)]);const prefixes=[company,...(brandAliases[company]||[]).map(normalizeText)];for(const prefix of prefixes){if(name.startsWith(prefix+' '))keys.add(name.slice(prefix.length+1));}return keys;}
+const deviceKeyCache=new WeakMap();
+function deviceKeys(d){const cached=deviceKeyCache.get(d);if(cached&&cached.name===d.name&&cached.company===d.company)return cached.keys;const name=normalizeText(d.name),company=normalizeText(d.company),keys=new Set([name,normalizeText(company+' '+name)]);const prefixes=[company,...(brandAliases[company]||[]).map(normalizeText)];for(const prefix of prefixes){if(name.startsWith(prefix+' '))keys.add(name.slice(prefix.length+1));}deviceKeyCache.set(d,{name:d.name,company:d.company,keys});return keys;}
 // Model codes and legacy duplicate names are search aliases, not separate devices.
 const modelSearchAliases={
  'Samsung|Galaxy A20s':['Galaxy A20s (A207)','Galaxy A20s (A207F/DS)','A207','A207F/DS'],
@@ -129,6 +130,12 @@ async function loadSupplierOffline(){
 }
 // Index pair references once per catalog, so counts on model cards stay fast.
 let indexedPairs=null,pairReferenceIndex=new Map();
+let indexedDevices=null,normalizedDeviceLabels=[];
+function compatibilityTarget(other){
+ if(indexedDevices!==state.devices){indexedDevices=state.devices;normalizedDeviceLabels=state.devices.map(d=>normalizeText(d.company+' '+d.name));}
+ const label=normalizeText(other);
+ return state.devices.find((d,i)=>d.id===other||d.name===other||normalizedDeviceLabels[i]===label);
+}
 function matchingPairs(refs,keys){
  if(indexedPairs!==state.pairs){
   indexedPairs=state.pairs;pairReferenceIndex=new Map();
@@ -156,7 +163,7 @@ function modelTile(d){
  card.querySelector('.info').append(badge);
  return card;
 }
-function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of matchingPairs(refs,keys)){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=state.devices.find(x=>x.id===other||x.name===other||(normalizeText(x.company+' '+x.name)===normalizeText(other)));const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
+function compatibleFor(d,kind=state.kind){const ids=new Set([d.id]);const keys=deviceKeys(d);const all=state.devices.filter(x=>x.id===d.id||(x.company===d.company&&[...deviceKeys(x)].some(k=>keys.has(k))));for(const x of all)ids.add(x.id);const refs=new Set([...ids,...all.map(x=>x.name)]);for(const x of all)refs.add(x.company+' '+x.name);const matches=[];const seen=new Set();for(const p of matchingPairs(refs,keys)){if(kind&&p.kind!==kind)continue;const left=refs.has(p.device)||[...keys].includes(normalizeText(p.device));const right=refs.has(p.compatible)||[...keys].includes(normalizeText(p.compatible));if(!left&&!right)continue;const other=left?p.compatible:p.device;const target=compatibilityTarget(other);const label=target?(target.name.toLowerCase().startsWith(target.company.toLowerCase()+' ')?target.name:target.company+' '+target.name):other;const unique=p.kind+':'+normalizeText(label);if(seen.has(unique)||normalizeText(label)===normalizeText(d.company+' '+d.name))continue;seen.add(unique);matches.push({id:p.id,kind:p.kind,label,image_url:p.image_url||null});}
 // Add only supplier-listed model groups not already represented by user's photo imports.
 if(kind==='charging_sockets'){
  const wanted=supplierDeviceKey(d);

@@ -1,4 +1,4 @@
-const CACHE='tawafuq-pwa-v18';
+const CACHE='tawafuq-pwa-v19';
 const LOGO_CACHE='tawafuq-brand-originals-v1';
 const ASSETS=['./','./index.html','./css/style.css','./js/app.js','./js/install.js','./images/logo.svg','./images/icon-192.png','./images/icon-512.png','./manifest.webmanifest','./images/brands/apple.svg','./images/brands/asus.svg','./images/brands/htc.svg','./images/brands/huawei.svg','./images/brands/lenovo.svg','./images/brands/lg.svg','./images/brands/motorola.svg','./images/brands/nokia.svg','./images/brands/samsung.svg','./images/brands/sony.svg'
 ];
